@@ -16,6 +16,8 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
+var logFatal = log.Fatal
+
 func usage() {
 	fmt.Fprintf(os.Stderr, "usage: %s [inputfile]\n", os.Args[0])
 	flag.PrintDefaults()
@@ -24,7 +26,7 @@ func usage() {
 
 func failOnError(err error) {
 	if err != nil {
-		log.Fatal(err)
+		logFatal(err)
 	}
 }
 
@@ -128,7 +130,7 @@ func (opts *Options) PlistContent() string {
 
 // WritePlist writes plist file
 func (opts *Options) WritePlist() error {
-	return ioutil.WriteFile(opts.PlistPath(), []byte(opts.PlistContent()), 644)
+	return ioutil.WriteFile(opts.PlistPath(), []byte(opts.PlistContent()), 0644)
 }
 
 // Clean removes existing output
@@ -136,18 +138,22 @@ func (opts *Options) Clean() error {
 	return os.RemoveAll(opts.DocsetPath())
 }
 
+// CreateDirectory creates directory
+func (opts *Options) CreateDirectory() error {
+	return os.MkdirAll(opts.ContentPath(), 0755)
+}
+
 // ExtractSource extracts source to destination
 func (opts *Options) ExtractSource() error {
-	if err := os.MkdirAll(opts.ContentPath(), 0755); err != nil {
-		return err
-	}
 	cmd := exec.Command("extract_chmLib", opts.SourcePath, opts.ContentPath())
 	return cmd.Run()
 }
 
 // CreateDatabase creates database
 func (opts *Options) CreateDatabase() error {
+	os.Remove(opts.DatabasePath())
 	titleRE := regexp.MustCompile("<title>([^<]+)</title>")
+	spacesRE := regexp.MustCompile("[\\s\\t]+")
 	db, err := sql.Open("sqlite3", opts.DatabasePath())
 	if err != nil {
 		return err
@@ -178,7 +184,10 @@ func (opts *Options) CreateDatabase() error {
 			content := string(b)
 			res := titleRE.FindAllStringSubmatch(content, -1)
 			if len(res) >= 1 && len(res[0]) >= 2 {
-				_, err := stmt.Exec(res[0][1], "Guide", strings.TrimPrefix(path, opts.ContentPath()))
+				ttl := strings.Replace(res[0][1], "\n", " ", -1)
+				ttl = spacesRE.ReplaceAllString(ttl, " ")
+				ttl = strings.TrimSpace(ttl)
+				_, err := stmt.Exec(ttl, "Guide", strings.TrimPrefix(path, opts.ContentPath()))
 				if err != nil {
 					return err
 				}
@@ -194,6 +203,7 @@ func (opts *Options) CreateDatabase() error {
 func main() {
 	opts := NewOptions()
 	opts.Clean()
+	failOnError(opts.CreateDirectory())
 	failOnError(opts.ExtractSource())
 	failOnError(opts.CreateDatabase())
 	failOnError(opts.WritePlist())

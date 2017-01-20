@@ -1,0 +1,4 @@
+#!/bin/sh
+
+[ -d tmp ] || mkdir tmp
+echo $@ > tmp/fixtureinput.txt

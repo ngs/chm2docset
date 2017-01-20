@@ -23,6 +23,7 @@ How to use
 
 ```sh
 brew install chmlib
+go get -u go github.com/ngs/chm2docset
 go install github.com/ngs/chm2docset
 chm2docset -platform docset-platform -out /path/to/MyRef.docset /path/to/MyReference.chm
 ```
